@@ -1,0 +1,7 @@
+{
+  "name": "UniStay - Student Housing Marketplace",
+  "description": "A comprehensive rental platform for students featuring smart college-based search, AI rent assistants, budget calculators, and safety-focused listings.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
