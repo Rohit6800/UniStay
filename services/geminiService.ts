@@ -1,7 +1,8 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+// Strictly following Google GenAI SDK initialization guidelines
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const getAIRentAdvice = async (budget: number, location: string) => {
   try {
@@ -14,6 +15,7 @@ export const getAIRentAdvice = async (budget: number, location: string) => {
         thinkingConfig: { thinkingBudget: 0 }
       }
     });
+    // Accessing .text property directly as per guidelines
     return response.text;
   } catch (error) {
     console.error("Gemini Error:", error);
@@ -40,7 +42,9 @@ export const parseAIQuery = async (query: string) => {
         }
       }
     });
-    return JSON.parse(response.text || '{}');
+    // Accessing .text property directly and trimming before parsing
+    const jsonStr = response.text?.trim() || '{}';
+    return JSON.parse(jsonStr);
   } catch (error) {
     console.error("Parsing Query Error:", error);
     return null;

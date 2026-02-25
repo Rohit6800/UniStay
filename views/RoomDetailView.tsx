@@ -1,17 +1,26 @@
 
 import React, { useState } from 'react';
-import { Room } from '../types';
-import { ChevronLeft, Share2, Heart, ShieldCheck, MapPin, Phone, MessageCircle, Calendar, Users, Home, Wind, Bath, Info, AlertTriangle, Eye, Navigation, Camera } from 'lucide-react';
+import { Room, User } from '../types';
+import { ChevronLeft, Share2, Heart, ShieldCheck, MapPin, Phone, MessageCircle, Calendar, Users, Home, Wind, Bath, Info, AlertTriangle, Eye, Navigation, Camera, CreditCard, X, CheckCircle2 } from 'lucide-react';
+import Logo from '../components/Logo';
+import { submitOrder } from '../services/supabase';
 
 interface RoomDetailViewProps {
   room: Room;
+  user: User | null;
   onBack: () => void;
   isSaved: boolean;
   onToggleSave: () => void;
+  onNavigateAuth?: () => void;
 }
 
-const RoomDetailView: React.FC<RoomDetailViewProps> = ({ room, onBack, isSaved, onToggleSave }) => {
+const RoomDetailView: React.FC<RoomDetailViewProps> = ({ room, user, onBack, isSaved, onToggleSave, onNavigateAuth }) => {
   const [activePhoto, setActivePhoto] = useState(0);
+  const [showCheckout, setShowCheckout] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [orderSuccess, setOrderSuccess] = useState(false);
+  const [moveInDate, setMoveInDate] = useState('');
+  const [message, setMessage] = useState('');
 
   // Helper to get labels for the specific 3-photo structure requested
   const getPhotoLabel = (index: number) => {
@@ -23,14 +32,51 @@ const RoomDetailView: React.FC<RoomDetailViewProps> = ({ room, onBack, isSaved, 
     }
   };
 
+  const handleBooking = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) {
+      onNavigateAuth?.();
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await submitOrder({
+        room_id: room.id,
+        room_title: room.title,
+        student_id: user.id,
+        student_name: user.name,
+        student_email: user.email,
+        rent: room.rent,
+        deposit: room.deposit,
+        status: 'pending',
+        move_in_date: moveInDate,
+        message: message
+      });
+      setOrderSuccess(true);
+      setTimeout(() => {
+        setShowCheckout(false);
+        setOrderSuccess(false);
+      }, 3000);
+    } catch (error) {
+      console.error('Error submitting order:', error);
+      alert('Failed to submit booking. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="bg-slate-50 min-h-screen pb-24">
       {/* Navigation Header */}
       <div className="fixed top-0 left-0 right-0 z-50 glass border-b border-white/20 p-4">
         <div className="max-w-5xl mx-auto flex justify-between items-center">
-          <button onClick={onBack} className="flex items-center gap-1 font-bold text-slate-700 hover:text-blue-600 transition-colors">
-            <ChevronLeft /> Back to Search
-          </button>
+          <div className="flex items-center gap-6">
+            <button onClick={onBack} className="flex items-center gap-1 font-bold text-slate-700 hover:text-blue-600 transition-colors">
+              <ChevronLeft /> Back
+            </button>
+            <Logo className="hidden sm:flex" />
+          </div>
           <div className="flex gap-2">
             <button className="p-2 rounded-full hover:bg-slate-200 transition-colors"><Share2 size={20} /></button>
             <button 
@@ -202,8 +248,11 @@ const RoomDetailView: React.FC<RoomDetailViewProps> = ({ room, onBack, isSaved, 
                 <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-6">Property Owner</p>
                 
                 <div className="space-y-3">
-                  <button className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-200">
-                    <Phone size={18} /> Call Now
+                  <button 
+                    onClick={() => setShowCheckout(true)}
+                    className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
+                  >
+                    <CreditCard size={18} /> Book Now
                   </button>
                   <button className="w-full bg-emerald-500 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-200">
                     <MessageCircle size={18} /> WhatsApp
@@ -227,6 +276,84 @@ const RoomDetailView: React.FC<RoomDetailViewProps> = ({ room, onBack, isSaved, 
           </div>
         </div>
       </div>
+      {/* Checkout Modal */}
+      {showCheckout && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+            {orderSuccess ? (
+              <div className="p-12 text-center">
+                <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <CheckCircle2 size={48} />
+                </div>
+                <h3 className="text-2xl font-black text-slate-800 mb-2">Booking Request Sent!</h3>
+                <p className="text-slate-500 font-medium">The owner will review your request and contact you shortly.</p>
+              </div>
+            ) : (
+              <>
+                <div className="bg-indigo-600 p-8 text-white relative">
+                  <button 
+                    onClick={() => setShowCheckout(false)}
+                    className="absolute top-6 right-6 p-2 hover:bg-white/20 rounded-full transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+                  <h3 className="text-2xl font-black mb-1">Complete Booking</h3>
+                  <p className="text-indigo-100 opacity-80 text-sm">Review details and confirm your stay.</p>
+                </div>
+                
+                <form onSubmit={handleBooking} className="p-8 space-y-6">
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex gap-4">
+                    <img src={room.photos[0]} alt={room.title} className="w-20 h-20 rounded-xl object-cover" />
+                    <div>
+                      <h4 className="font-bold text-slate-800 text-sm line-clamp-1">{room.title}</h4>
+                      <p className="text-xs text-slate-500 mt-1 flex items-center gap-1"><MapPin size={12} /> {room.city}</p>
+                      <p className="text-indigo-600 font-black text-sm mt-2">₹{room.rent}/mo</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Move-in Date</label>
+                      <input 
+                        type="date" 
+                        required
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500"
+                        value={moveInDate}
+                        onChange={(e) => setMoveInDate(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Security Deposit</label>
+                      <div className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-xl font-bold text-slate-400">
+                        ₹{room.deposit}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Message to Owner (Optional)</label>
+                    <textarea 
+                      placeholder="Any questions or special requests?"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 h-24 resize-none"
+                      value={message}
+                      onChange={(e) => setMessage(e.target.value)}
+                    />
+                  </div>
+
+                  <button 
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {isSubmitting ? 'Processing...' : 'Confirm Booking Request'}
+                  </button>
+                  <p className="text-[10px] text-center text-slate-400 font-bold uppercase">No payment required now. Pay after visit.</p>
+                </form>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

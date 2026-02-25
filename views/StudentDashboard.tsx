@@ -2,30 +2,58 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { User, Room, RoomType } from '../types';
 import RoomCard from '../components/RoomCard';
-import { MOCK_ROOMS, STATES_DATA, STATE_COLLEGE_MAPPING } from '../constants';
-import { Search, SlidersHorizontal, Map as MapIcon, GraduationCap, X, Wallet, Heart, UserPlus, MapPin, Globe, Star, Sparkles, Navigation } from 'lucide-react';
+import { STATES_DATA, STATE_COLLEGE_MAPPING } from '../constants';
+import { Search, SlidersHorizontal, Map as MapIcon, GraduationCap, X, Wallet, Heart, UserPlus, MapPin, Globe, Star, Sparkles, Navigation, ArrowLeft, ShoppingBag, Clock, CheckCircle2, Home, Calendar } from 'lucide-react';
 import BudgetCalculator from '../components/BudgetCalculator';
+import Logo from '../components/Logo';
+import { supabase, Order } from '../services/supabase';
 
 interface StudentDashboardProps {
   user: User;
   onRoomSelect: (room: Room) => void;
   onLogout: () => void;
+  onBack: () => void;
   wishlist: string[];
   onToggleWishlist: (id: string) => void;
+  rooms: Room[];
 }
 
-const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onRoomSelect, onLogout, wishlist, onToggleWishlist }) => {
+const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onRoomSelect, onLogout, onBack, wishlist, onToggleWishlist, rooms }) => {
   const [search, setSearch] = useState('');
-  // Changed auto-select options to empty strings for a clean start
   const [selectedState, setSelectedState] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
   const [selectedCollege, setSelectedCollege] = useState('');
   const [budgetRange, setBudgetRange] = useState<[number, number]>([0, 20000]);
   const [roomType, setRoomType] = useState<RoomType | 'All'>('All');
   const [showFilters, setShowFilters] = useState(false);
-  const [activeTab, setActiveTab] = useState<'listings' | 'wishlist' | 'calculator' | 'roommates'>('listings');
+  const [activeTab, setActiveTab] = useState<'listings' | 'wishlist' | 'calculator' | 'roommates' | 'bookings'>('listings');
+  const [myBookings, setMyBookings] = useState<Order[]>([]);
+  const [loadingBookings, setLoadingBookings] = useState(false);
 
-  // Reset dependent fields when state changes
+  useEffect(() => {
+    if (activeTab === 'bookings') {
+      fetchBookings();
+    }
+  }, [activeTab]);
+
+  const fetchBookings = async () => {
+    setLoadingBookings(true);
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('student_id', user.id)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      setMyBookings(data || []);
+    } catch (error) {
+      console.error('Error fetching bookings:', error);
+    } finally {
+      setLoadingBookings(false);
+    }
+  };
+
   useEffect(() => {
     setSelectedCity('');
     setSelectedCollege('');
@@ -41,7 +69,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onRoomSelect,
   }, [selectedState]);
 
   const filteredRooms = useMemo(() => {
-    return MOCK_ROOMS.filter(room => {
+    return rooms.filter(room => {
       const matchesSearch = room.title.toLowerCase().includes(search.toLowerCase()) || 
                           room.location.toLowerCase().includes(search.toLowerCase());
       const matchesState = selectedState ? room.state === selectedState : true;
@@ -53,7 +81,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onRoomSelect,
       if (activeTab === 'wishlist') return wishlist.includes(room.id);
       return matchesSearch && matchesState && matchesCity && matchesCollege && matchesType && matchesBudget;
     });
-  }, [search, selectedState, selectedCity, selectedCollege, roomType, budgetRange, activeTab, wishlist]);
+  }, [search, selectedState, selectedCity, selectedCollege, roomType, budgetRange, activeTab, wishlist, rooms]);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -64,6 +92,30 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onRoomSelect,
         <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-80 h-80 bg-indigo-400 rounded-full blur-[100px] opacity-20"></div>
         
         <div className="max-w-7xl mx-auto px-4 py-12 relative z-10">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
+            <div className="flex items-center gap-6">
+              <button 
+                onClick={onBack}
+                className="flex items-center gap-2 text-white/70 hover:text-white font-black uppercase tracking-widest text-xs transition-all group"
+              >
+                <div className="p-2 bg-white/10 backdrop-blur-md rounded-xl group-hover:bg-white/20 transition-all">
+                  <ArrowLeft size={16} />
+                </div>
+                <span>Exit</span>
+              </button>
+              <Logo light />
+            </div>
+            <div className="flex items-center gap-4 bg-white/10 backdrop-blur-md p-3 rounded-2xl border border-white/10">
+              <div className="w-12 h-12 bg-white text-indigo-900 rounded-xl flex items-center justify-center font-black text-xl shadow-lg">
+                {user.name.charAt(0)}
+              </div>
+              <div>
+                <h4 className="font-bold text-sm">Welcome, {user.name}</h4>
+                <button onClick={onLogout} className="text-xs text-indigo-300 font-bold hover:text-white transition-colors">Logout Account</button>
+              </div>
+            </div>
+          </div>
+
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
             <div>
               <div className="inline-flex items-center gap-2 bg-indigo-800/50 border border-indigo-700/50 px-3 py-1 rounded-full text-xs font-bold text-indigo-200 mb-4">
@@ -73,16 +125,6 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onRoomSelect,
               <p className="text-indigo-200 text-lg font-medium opacity-90 max-w-xl">
                 Best budget rooms, PGs and hostels across India for students. Select your location below.
               </p>
-            </div>
-            
-            <div className="flex items-center gap-4 bg-white/10 backdrop-blur-md p-3 rounded-2xl border border-white/10">
-              <div className="w-12 h-12 bg-white text-indigo-900 rounded-xl flex items-center justify-center font-black text-xl shadow-lg">
-                {user.name.charAt(0)}
-              </div>
-              <div>
-                <h4 className="font-bold text-sm">Welcome, {user.name}</h4>
-                <button onClick={onLogout} className="text-xs text-indigo-300 font-bold hover:text-white transition-colors">Logout Account</button>
-              </div>
             </div>
           </div>
 
@@ -141,6 +183,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onRoomSelect,
             {[
               { id: 'listings', label: 'Explore', icon: MapIcon },
               { id: 'wishlist', label: 'Saved', icon: Heart },
+              { id: 'bookings', label: 'Bookings', icon: ShoppingBag },
               { id: 'roommates', label: 'Match', icon: UserPlus },
               { id: 'calculator', label: 'Planner', icon: Wallet }
             ].map(tab => (
@@ -301,6 +344,58 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onRoomSelect,
                 <Heart size={64} className="mx-auto text-slate-100 mb-6" />
                 <h3 className="text-xl font-bold text-slate-400">Your wishlist is empty.</h3>
                 <p className="text-slate-300 mt-2">Love a room? Tap the heart icon to save it here!</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'bookings' && (
+          <div className="pb-20">
+            <h2 className="text-2xl font-black text-slate-800 mb-8 flex items-center gap-3">
+               <ShoppingBag className="text-indigo-600" /> My Booking History
+            </h2>
+            
+            {loadingBookings ? (
+              <div className="flex justify-center py-20">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+              </div>
+            ) : myBookings.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {myBookings.map(booking => (
+                  <div key={booking.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col sm:flex-row gap-6 hover:shadow-md transition-shadow">
+                    <div className="w-full sm:w-32 h-32 bg-slate-100 rounded-2xl overflow-hidden flex-shrink-0">
+                      {/* We don't have the photo in the order, but we could find it from rooms if needed */}
+                      <div className="w-full h-full flex items-center justify-center text-slate-300">
+                        <Home size={32} />
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="font-black text-slate-800 text-lg">{booking.room_title}</h4>
+                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                          booking.status === 'confirmed' ? 'bg-emerald-100 text-emerald-600' : 
+                          booking.status === 'pending' ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-600'
+                        }`}>
+                          {booking.status}
+                        </span>
+                      </div>
+                      <div className="space-y-2 mb-4">
+                        <p className="text-xs text-slate-500 flex items-center gap-2"><Calendar size={14} /> Move-in: {new Date(booking.move_in_date).toLocaleDateString()}</p>
+                        <p className="text-xs text-slate-500 flex items-center gap-2"><Clock size={14} /> Requested: {new Date(booking.created_at!).toLocaleDateString()}</p>
+                      </div>
+                      <div className="flex justify-between items-center pt-4 border-t border-slate-50">
+                        <p className="text-indigo-600 font-black">₹{booking.rent}/mo</p>
+                        <button className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-indigo-600 transition-colors">View Details</button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-24 bg-white rounded-[3rem] border-2 border-slate-100">
+                <ShoppingBag size={64} className="mx-auto text-slate-100 mb-6" />
+                <h3 className="text-xl font-bold text-slate-400">No bookings yet.</h3>
+                <p className="text-slate-300 mt-2">Ready to move? Explore stays and send your first request!</p>
               </div>
             )}
           </div>
